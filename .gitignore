@@ -1,25 +1,58 @@
-# Python
-__pycache__/
-*.py[cod]
-*.egg-info/
-
 # Virtual environment
 .venv/
+venv/
+env/
 
-# Environment variables
-.env
+# Python cache files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Pytest
+.pytest_cache/
+
+# Coverage reports
+.coverage
+.coverage.*
+htmlcov/
+.pytest_cache/
+
+# SQLite databases
+data/*.db
+data/*.sqlite
+data/*.sqlite3
 
 # Generated data
 data/raw/*
 data/processed/*
 
+# Keep sample data
+!data/samples/
+!data/samples/**
+
 # Logs
 logs/*
 *.log
 
-# IDE
+# Machine learning generated models
+models/*.pkl
+models/*.joblib
+models/*.h5
+models/*.pt
+models/*.pth
+
+# Environment/config secrets
+.env
+.env.*
+!.env.example
+
+# IDE/editor files
 .vscode/
 .idea/
+*.swp
+*.swo
+*~
 
-# OS
+# OS-generated files
 .DS_Store
+Thumbs.db
