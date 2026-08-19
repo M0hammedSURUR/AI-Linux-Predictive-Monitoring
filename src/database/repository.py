@@ -1,5 +1,6 @@
 from datetime import datetime
 from pathlib import Path
+import sqlite3
 
 from src.collector.models import TelemetryRecord
 from src.database.database import get_connection
@@ -55,17 +56,12 @@ class TelemetryRepository:
                 connection.commit()
             return
 
-        import sqlite3
-
         with sqlite3.connect(self.database_path) as connection:
             connection.execute(query, values)
             connection.commit()
 
-    def get_recent_records(
-        self,
-        limit: int | None = None,
-    ) -> list[TelemetryRecord]:
-        """Retrieve telemetry records ordered by timestamp."""
+    def get_all(self) -> list[TelemetryRecord]:
+        """Load all telemetry records from the database."""
 
         query = """
         SELECT
@@ -83,40 +79,98 @@ class TelemetryRepository:
             top_cpu_process,
             top_memory_process
         FROM telemetry
-        ORDER BY timestamp ASC
+        ORDER BY timestamp
+        """
+
+        if self.database_path is None:
+            with get_connection() as connection:
+                rows = connection.execute(query).fetchall()
+        else:
+            with sqlite3.connect(self.database_path) as connection:
+                connection.row_factory = sqlite3.Row
+                rows = connection.execute(query).fetchall()
+
+        return [
+            TelemetryRecord(
+                timestamp=datetime.fromisoformat(row["timestamp"]),
+                cpu_percent=row["cpu_percent"],
+                memory_percent=row["memory_percent"],
+                swap_percent=row["swap_percent"],
+                disk_percent=row["disk_percent"],
+                load_1m=row["load_1m"],
+                disk_read_bytes=row["disk_read_bytes"],
+                disk_write_bytes=row["disk_write_bytes"],
+                network_bytes_sent=row["network_bytes_sent"],
+                network_bytes_received=row["network_bytes_received"],
+                process_count=row["process_count"],
+                top_cpu_process=row["top_cpu_process"],
+                top_memory_process=row["top_memory_process"],
+            )
+            for row in rows
+        ]
+
+    def get_recent_records(
+        self,
+        limit: int | None = None,
+    ) -> list[TelemetryRecord]:
+        """Load recent telemetry records from the database."""
+
+        query = """
+        SELECT
+            timestamp,
+            cpu_percent,
+            memory_percent,
+            swap_percent,
+            disk_percent,
+            load_1m,
+            disk_read_bytes,
+            disk_write_bytes,
+            network_bytes_sent,
+            network_bytes_received,
+            process_count,
+            top_cpu_process,
+            top_memory_process
+        FROM telemetry
+        ORDER BY timestamp DESC
         """
 
         if limit is not None:
             query += " LIMIT ?"
 
         if self.database_path is None:
-            connection_context = get_connection()
+            with get_connection() as connection:
+                if limit is None:
+                    rows = connection.execute(query).fetchall()
+                else:
+                    rows = connection.execute(query, (limit,)).fetchall()
         else:
-            import sqlite3
+            with sqlite3.connect(self.database_path) as connection:
+                connection.row_factory = sqlite3.Row
 
-            connection_context = sqlite3.connect(self.database_path)
+                if limit is None:
+                    rows = connection.execute(query).fetchall()
+                else:
+                    rows = connection.execute(query, (limit,)).fetchall()
 
-        with connection_context as connection:
-            if limit is not None:
-                rows = connection.execute(query, (limit,)).fetchall()
-            else:
-                rows = connection.execute(query).fetchall()
-
-        return [
+        records = [
             TelemetryRecord(
-                timestamp=datetime.fromisoformat(row[0]),
-                cpu_percent=row[1],
-                memory_percent=row[2],
-                swap_percent=row[3],
-                disk_percent=row[4],
-                load_1m=row[5],
-                disk_read_bytes=row[6],
-                disk_write_bytes=row[7],
-                network_bytes_sent=row[8],
-                network_bytes_received=row[9],
-                process_count=row[10],
-                top_cpu_process=row[11],
-                top_memory_process=row[12],
+                timestamp=datetime.fromisoformat(row["timestamp"]),
+                cpu_percent=row["cpu_percent"],
+                memory_percent=row["memory_percent"],
+                swap_percent=row["swap_percent"],
+                disk_percent=row["disk_percent"],
+                load_1m=row["load_1m"],
+                disk_read_bytes=row["disk_read_bytes"],
+                disk_write_bytes=row["disk_write_bytes"],
+                network_bytes_sent=row["network_bytes_sent"],
+                network_bytes_received=row["network_bytes_received"],
+                process_count=row["process_count"],
+                top_cpu_process=row["top_cpu_process"],
+                top_memory_process=row["top_memory_process"],
             )
             for row in rows
         ]
+
+        records.reverse()
+
+        return records
