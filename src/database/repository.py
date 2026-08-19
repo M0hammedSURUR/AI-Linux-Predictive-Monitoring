@@ -3,11 +3,12 @@ from pathlib import Path
 import sqlite3
 
 from src.collector.models import TelemetryRecord
+from src.anomaly_detection.events import AnomalyEvent
 from src.database.database import get_connection
 
 
 class TelemetryRepository:
-    """Provides persistence operations for telemetry records."""
+    """Provides persistence operations for telemetry and anomaly records."""
 
     def __init__(self, database_path: Path | None = None):
         self.database_path = database_path
@@ -174,3 +175,40 @@ class TelemetryRepository:
         records.reverse()
 
         return records
+
+    # ==================== DAY 11: ADDED ====================
+
+    def save_anomaly_event(self, event: AnomalyEvent) -> None:
+        """Store one anomaly event in the database."""
+
+        query = """
+        INSERT INTO anomaly_events (
+            timestamp,
+            is_anomaly,
+            severity,
+            reasons,
+            created_at
+        )
+        VALUES (?, ?, ?, ?, ?)
+        """
+
+        values = (
+            event.timestamp.isoformat(),
+            int(event.is_anomaly),
+            event.severity,
+            " | ".join(event.reasons),
+            event.created_at.isoformat(),
+        )
+
+        if self.database_path is None:
+            with get_connection() as connection:
+                connection.execute(query, values)
+                connection.commit()
+            return
+
+        with sqlite3.connect(self.database_path) as connection:
+            connection.execute(query, values)
+            connection.commit()
+
+    # =========================================================
+

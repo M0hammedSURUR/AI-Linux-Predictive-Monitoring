@@ -1,27 +1,29 @@
-from datetime import datetime, timezone
-
 from src.anomaly_detection.detector import AnomalyDetector
-from src.preprocessing.telemetry_preprocessor import ProcessedTelemetry
+from src.collector.models import TelemetryRecord
 
 
 def create_record(
-    cpu_percent=25.0,
-    memory_percent=40.0,
-    disk_percent=50.0,
-    load_1m=1.5,
+    cpu=20.0,
+    memory=40.0,
+    disk=50.0,
+    load=1.0,
 ):
-    return ProcessedTelemetry(
-        timestamp=datetime.now(timezone.utc),
-        cpu_percent=cpu_percent,
-        memory_percent=memory_percent,
+    """Create a telemetry record for testing."""
+
+    return TelemetryRecord(
+        timestamp=__import__("datetime").datetime.now(
+            __import__("datetime").timezone.utc
+        ),
+        cpu_percent=cpu,
+        memory_percent=memory,
         swap_percent=0.0,
-        disk_percent=disk_percent,
-        load_1m=load_1m,
+        disk_percent=disk,
+        load_1m=load,
+        disk_read_bytes=1000,
+        disk_write_bytes=2000,
+        network_bytes_sent=3000,
+        network_bytes_received=4000,
         process_count=100,
-        disk_read_rate=1000.0,
-        disk_write_rate=2000.0,
-        network_send_rate=3000.0,
-        network_receive_rate=4000.0,
         top_cpu_process="test_cpu_process",
         top_memory_process="test_memory_process",
     )
@@ -41,7 +43,7 @@ def test_normal_record_is_not_an_anomaly():
 def test_high_cpu_is_detected():
     detector = AnomalyDetector()
 
-    record = create_record(cpu_percent=95.0)
+    record = create_record(cpu=95.0)
 
     result = detector.detect(record)
 
@@ -53,13 +55,16 @@ def test_multiple_anomalies_are_detected():
     detector = AnomalyDetector()
 
     record = create_record(
-        cpu_percent=95.0,
-        memory_percent=90.0,
-        disk_percent=95.0,
-        load_1m=5.0,
+        cpu=95.0,
+        memory=95.0,
+        disk=95.0,
+        load=10.0,
     )
 
     result = detector.detect(record)
 
     assert result.is_anomaly is True
-    assert len(result.reasons) == 4
+    assert "High CPU usage" in result.reasons
+    assert "High memory usage" in result.reasons
+    assert "High disk usage" in result.reasons
+    assert "High system load" in result.reasons

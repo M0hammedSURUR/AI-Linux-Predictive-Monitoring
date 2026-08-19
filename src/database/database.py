@@ -38,6 +38,21 @@ ON telemetry(timestamp);
 """
 
 
+# ==================== DAY 11: ADDED ====================
+# Stores detected anomaly events separately from raw telemetry.
+CREATE_ANOMALY_EVENTS_TABLE = """
+CREATE TABLE IF NOT EXISTS anomaly_events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    timestamp TEXT NOT NULL,
+    is_anomaly INTEGER NOT NULL,
+    severity TEXT NOT NULL,
+    reasons TEXT NOT NULL,
+    created_at TEXT NOT NULL
+);
+"""
+# =======================================================
+
+
 def get_connection() -> sqlite3.Connection:
     """Create and return a SQLite database connection."""
     DATABASE_PATH.parent.mkdir(parents=True, exist_ok=True)
@@ -53,4 +68,9 @@ def initialize_database() -> None:
     with get_connection() as connection:
         connection.execute(CREATE_TELEMETRY_TABLE)
         connection.execute(CREATE_TIMESTAMP_INDEX)
+
+        # ==================== DAY 11: ADDED ====================
+        connection.execute(CREATE_ANOMALY_EVENTS_TABLE)
+        # =======================================================
+
         connection.commit()
