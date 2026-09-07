@@ -1,7 +1,6 @@
 import sqlite3
 from pathlib import Path
 
-
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 DATABASE_PATH = PROJECT_ROOT / "data" / "monitoring.db"
 
@@ -38,23 +37,35 @@ ON telemetry(timestamp);
 """
 
 
-# ==================== DAY 11: ADDED ====================
-# Stores detected anomaly events separately from raw telemetry.
-CREATE_ANOMALY_EVENTS_TABLE = """
-CREATE TABLE IF NOT EXISTS anomaly_events (
+# NEW: Store prediction results for historical analysis
+CREATE_PREDICTION_EVENTS_TABLE = """
+CREATE TABLE IF NOT EXISTS prediction_events (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     timestamp TEXT NOT NULL,
-    is_anomaly INTEGER NOT NULL,
-    severity TEXT NOT NULL,
-    reasons TEXT NOT NULL,
+
+    metric TEXT NOT NULL,
+    current_value REAL NOT NULL,
+    predicted_value REAL NOT NULL,
+    threshold REAL NOT NULL,
+
+    risk_level TEXT NOT NULL,
+    message TEXT NOT NULL,
+
     created_at TEXT NOT NULL
 );
 """
-# =======================================================
+
+
+# NEW: Index prediction events by timestamp
+CREATE_PREDICTION_TIMESTAMP_INDEX = """
+CREATE INDEX IF NOT EXISTS idx_prediction_events_timestamp
+ON prediction_events(timestamp);
+"""
 
 
 def get_connection() -> sqlite3.Connection:
     """Create and return a SQLite database connection."""
+
     DATABASE_PATH.parent.mkdir(parents=True, exist_ok=True)
 
     connection = sqlite3.connect(DATABASE_PATH)
@@ -65,12 +76,15 @@ def get_connection() -> sqlite3.Connection:
 
 def initialize_database() -> None:
     """Create the database tables and indexes if they do not exist."""
+
     with get_connection() as connection:
         connection.execute(CREATE_TELEMETRY_TABLE)
         connection.execute(CREATE_TIMESTAMP_INDEX)
 
-        # ==================== DAY 11: ADDED ====================
-        connection.execute(CREATE_ANOMALY_EVENTS_TABLE)
-        # =======================================================
+        # NEW: Create prediction persistence table
+        connection.execute(CREATE_PREDICTION_EVENTS_TABLE)
+
+        # NEW: Create prediction timestamp index
+        connection.execute(CREATE_PREDICTION_TIMESTAMP_INDEX)
 
         connection.commit()
