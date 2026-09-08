@@ -4,7 +4,6 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 DATABASE_PATH = PROJECT_ROOT / "data" / "monitoring.db"
 
-
 CREATE_TELEMETRY_TABLE = """
 CREATE TABLE IF NOT EXISTS telemetry (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -30,14 +29,11 @@ CREATE TABLE IF NOT EXISTS telemetry (
 );
 """
 
-
 CREATE_TIMESTAMP_INDEX = """
 CREATE INDEX IF NOT EXISTS idx_telemetry_timestamp
 ON telemetry(timestamp);
 """
 
-
-# NEW: Store prediction results for historical analysis
 CREATE_PREDICTION_EVENTS_TABLE = """
 CREATE TABLE IF NOT EXISTS prediction_events (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -55,17 +51,39 @@ CREATE TABLE IF NOT EXISTS prediction_events (
 );
 """
 
-
-# NEW: Index prediction events by timestamp
 CREATE_PREDICTION_TIMESTAMP_INDEX = """
 CREATE INDEX IF NOT EXISTS idx_prediction_events_timestamp
 ON prediction_events(timestamp);
 """
 
+# NEW: Persistent self-healing audit table
+CREATE_HEALING_AUDIT_TABLE = """
+CREATE TABLE IF NOT EXISTS healing_audit_logs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    timestamp TEXT NOT NULL,
+
+    metric TEXT NOT NULL,
+    action TEXT NOT NULL,
+
+    approval_status TEXT NOT NULL,
+    execution_status TEXT NOT NULL,
+
+    result TEXT NOT NULL,
+    error TEXT,
+
+    created_at TEXT NOT NULL
+);
+"""
+
+# NEW: Index for chronological audit-log queries
+CREATE_HEALING_AUDIT_TIMESTAMP_INDEX = """
+CREATE INDEX IF NOT EXISTS idx_healing_audit_timestamp
+ON healing_audit_logs(timestamp);
+"""
+
 
 def get_connection() -> sqlite3.Connection:
     """Create and return a SQLite database connection."""
-
     DATABASE_PATH.parent.mkdir(parents=True, exist_ok=True)
 
     connection = sqlite3.connect(DATABASE_PATH)
@@ -81,10 +99,11 @@ def initialize_database() -> None:
         connection.execute(CREATE_TELEMETRY_TABLE)
         connection.execute(CREATE_TIMESTAMP_INDEX)
 
-        # NEW: Create prediction persistence table
         connection.execute(CREATE_PREDICTION_EVENTS_TABLE)
-
-        # NEW: Create prediction timestamp index
         connection.execute(CREATE_PREDICTION_TIMESTAMP_INDEX)
+
+        # NEW: Create self-healing audit storage
+        connection.execute(CREATE_HEALING_AUDIT_TABLE)
+        connection.execute(CREATE_HEALING_AUDIT_TIMESTAMP_INDEX)
 
         connection.commit()
