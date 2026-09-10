@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+from pathlib import Path
 
 import pytest
 
@@ -16,16 +17,24 @@ def create_action(action: str, status: str = "approved"):
     )
 
 
-def test_approved_allowed_action_is_executed(tmp_path):
-    """Approved cache cleanup should remove only temporary test contents."""
+def test_approved_allowed_action_is_executed(tmp_path, monkeypatch):
+    """Approved cache cleanup should remove only test cache contents."""
+
+    # NEW: Create an isolated fake home directory for this test.
+    fake_home = tmp_path / "home"
+    fake_home.mkdir()
+
+    test_cache = fake_home / ".cache"
+    test_cache.mkdir()
+
+    # NEW: Make Path.home() return the isolated test home.
+    monkeypatch.setattr(Path, "home", lambda: fake_home)
 
     executor = SelfHealingExecutor()
 
-    # NEW: Use a temporary directory instead of the real ~/.cache
-    test_cache = tmp_path / ".cache"
-    test_cache.mkdir()
+    # NEW: Use the isolated cache directory.
+    executor.CACHE_DIRECTORY = test_cache
 
-    # NEW: Create files and a subdirectory for the cleanup test
     test_file = test_cache / "test_file.txt"
     test_file.write_text("test cache data")
 
@@ -35,19 +44,15 @@ def test_approved_allowed_action_is_executed(tmp_path):
     nested_file = test_directory / "nested.txt"
     nested_file.write_text("nested cache data")
 
-    # NEW: Redirect the executor to the temporary test cache
-    executor.CACHE_DIRECTORY = test_cache
-
     action = create_action("clear_cache")
 
     result = executor.execute(action)
 
-    # NEW: Verify cleanup succeeded
     assert "Cache cleanup completed successfully." in result
     assert not test_file.exists()
     assert not test_directory.exists()
 
-    # NEW: The cache directory itself must remain
+    # NEW: The cache directory itself must remain.
     assert test_cache.exists()
     assert test_cache.is_dir()
 
@@ -86,11 +91,38 @@ def test_arbitrary_command_is_blocked():
         executor.execute(action)
 
 
-# NEW: Real service restart must remain disabled for now
 def test_real_service_restart_is_not_implemented():
     executor = SelfHealingExecutor()
 
     action = create_action("restart_service")
 
-    with pytest.raises(ValueError, match="Real service restart is not implemented yet"):
+    with pytest.raises(
+        ValueError,
+        match="Real service restart is not implemented yet",
+    ):
+        executor.execute(action)
+
+
+def test_execution_timeout_is_configured():
+    executor = SelfHealingExecutor()
+
+    assert executor.EXECUTION_TIMEOUT_SECONDS == 10
+    assert executor.EXECUTION_TIMEOUT_SECONDS > 0
+
+
+# NEW: Prevent cache cleanup from being redirected outside ~/.cache.
+def test_cache_cleanup_rejects_unsafe_target(tmp_path):
+    executor = SelfHealingExecutor()
+
+    unsafe_directory = tmp_path / "unsafe"
+    unsafe_directory.mkdir()
+
+    executor.CACHE_DIRECTORY = unsafe_directory
+
+    action = create_action("clear_cache")
+
+    with pytest.raises(
+        ValueError,
+        match="outside the approved user cache directory",
+    ):
         executor.execute(action)

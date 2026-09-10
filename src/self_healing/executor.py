@@ -1,4 +1,5 @@
-from pathlib import Path  # NEW
+from pathlib import Path
+from time import monotonic  # NEW
 
 from src.self_healing.models import HealingAction
 
@@ -6,56 +7,73 @@ from src.self_healing.models import HealingAction
 class SelfHealingExecutor:
     """Executes only predefined, approved healing actions."""
 
-    # NEW: Whitelist of actions that the executor is allowed to perform
     ALLOWED_ACTIONS = {
         "clear_cache",
         "restart_service",
     }
 
-    # NEW: Restrict cache cleanup to the current user's cache directory
     CACHE_DIRECTORY = Path.home() / ".cache"
 
-    # NEW: Maximum time allowed for a healing operation
     EXECUTION_TIMEOUT_SECONDS = 10
 
     def execute(self, action: HealingAction) -> str:
         """Execute an approved healing action."""
 
-        # Only approved actions can be executed
         if action.status != "approved":
             raise ValueError(
                 "Only approved healing actions can be executed."
             )
 
-        # Block actions that are not explicitly whitelisted
         if action.action not in self.ALLOWED_ACTIONS:
             raise ValueError(
                 f"Action '{action.action}' is not allowed."
             )
 
-        # NEW: Execute the real cache-clearing action
-        if action.action == "clear_cache":
-            return self._clear_cache()
+        # NEW: Record when execution starts.
+        start_time = monotonic()
 
-        # NEW: Keep service restart disabled until its real
-        # implementation is safely designed and tested.
+        if action.action == "clear_cache":
+            result = self._clear_cache()
+
+            # NEW: Measure the total execution duration.
+            execution_duration = monotonic() - start_time
+
+            # NEW: Report an execution-duration timeout condition.
+            if execution_duration > self.EXECUTION_TIMEOUT_SECONDS:
+                raise TimeoutError(
+                    f"Healing action exceeded the configured "
+                    f"execution time limit of "
+                    f"{self.EXECUTION_TIMEOUT_SECONDS} seconds."
+                )
+
+            return result
+
         if action.action == "restart_service":
             raise ValueError(
                 "Real service restart is not implemented yet."
             )
 
-        # Defensive fallback
         raise ValueError(
             f"Unsupported healing action: {action.action}"
         )
 
-    # NEW: Safely clear only the contents of ~/.cache
     def _clear_cache(self) -> str:
-        """Remove cache contents without deleting the cache directory."""
+        """Remove cache contents only from the approved cache directory."""
 
         cache_directory = self.CACHE_DIRECTORY.resolve()
 
-        # NEW: Safety check — the target must exist and be a directory
+        # NEW: Determine the only directory that is allowed for real execution.
+        approved_cache_directory = (
+            Path.home() / ".cache"
+        ).resolve()
+
+        # NEW: Prevent the executor from being redirected to another location.
+        if cache_directory != approved_cache_directory:
+            raise ValueError(
+                "Cache cleanup target is outside the approved "
+                "user cache directory."
+            )
+
         if not cache_directory.exists():
             raise ValueError(
                 "Cache directory does not exist."
@@ -69,7 +87,6 @@ class SelfHealingExecutor:
         deleted_items = 0
         failed_items = 0
 
-        # NEW: Delete only direct children of ~/.cache
         for item in cache_directory.iterdir():
             try:
                 if item.is_dir() and not item.is_symlink():
@@ -82,7 +99,6 @@ class SelfHealingExecutor:
             except OSError:
                 failed_items += 1
 
-        # NEW: Report the result without exposing arbitrary commands
         if failed_items:
             raise RuntimeError(
                 f"Cache cleanup partially failed: "
@@ -95,7 +111,6 @@ class SelfHealingExecutor:
             f"{deleted_items} items removed from {cache_directory}."
         )
 
-    # NEW: Recursively remove a directory using Python filesystem APIs
     def _remove_directory(self, directory: Path) -> None:
         """Remove a directory and its contents safely."""
 

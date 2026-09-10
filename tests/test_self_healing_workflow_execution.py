@@ -1,39 +1,47 @@
 from datetime import datetime, timezone
+from pathlib import Path
 
-from src.recommendations.models import Recommendation
+from src.self_healing.audit_repository import HealingAuditRepository
+from src.self_healing.models import HealingAction
 from src.self_healing.workflow import SelfHealingWorkflow
+from src.recommendations.models import Recommendation
 
 
 def create_recommendation():
-    """Create a sample disk recommendation for testing."""
-
     return Recommendation(
         timestamp=datetime.now(timezone.utc),
-        metric="disk_percent",  # NEW: Maps to the implemented clear_cache action
+        metric="disk_percent",
         severity="high",
-        title="High Disk Usage",
-        description="Disk usage is above the configured threshold.",
-        suggested_action="Check disk usage and identify large files.",
+        title="High disk usage detected",
+        description="Disk usage is approaching the configured threshold.",
+        suggested_action="Clear user cache",
     )
 
 
-def test_approved_action_executes_and_is_audited(tmp_path):
+def test_approved_action_executes_and_is_audited(tmp_path, monkeypatch):
     """Approved cache-cleanup actions should execute and be audited."""
 
-    workflow = SelfHealingWorkflow()
+    # NEW: Create an isolated fake home directory.
+    fake_home = tmp_path / "home"
+    fake_home.mkdir()
 
-    from src.self_healing.audit_repository import HealingAuditRepository
+    test_cache = fake_home / ".cache"
+    test_cache.mkdir()
+
+    # NEW: Make Path.home() return the isolated test home.
+    monkeypatch.setattr(Path, "home", lambda: fake_home)
+
+    workflow = SelfHealingWorkflow()
 
     workflow.audit_repository = HealingAuditRepository(
         database_path=tmp_path / "test.db"
     )
 
-    # NEW: Use a temporary cache directory instead of the real ~/.cache
-    workflow.executor.CACHE_DIRECTORY = tmp_path / ".cache"
-    workflow.executor.CACHE_DIRECTORY.mkdir()
+    # NEW: Use the isolated approved cache directory.
+    workflow.executor.CACHE_DIRECTORY = test_cache
 
-    # NEW: Create a safe test cache file
-    test_file = workflow.executor.CACHE_DIRECTORY / "test_cache.txt"
+    # NEW: Create a safe test cache file.
+    test_file = test_cache / "test_cache.txt"
     test_file.write_text("temporary cache data")
 
     recommendation = create_recommendation()
@@ -50,23 +58,14 @@ def test_approved_action_executes_and_is_audited(tmp_path):
 
     assert audit.approval_status == "approved"
     assert audit.execution_status == "success"
-    assert audit.error is None
-
-    # NEW: Verify the test cache content was actually removed
+    assert "Cache cleanup completed successfully." in audit.result
     assert not test_file.exists()
-
-    logs = workflow.audit_repository.get_all()
-
-    assert len(logs) == 1
-    assert logs[0].execution_status == "success"
 
 
 def test_rejected_action_is_audited(tmp_path):
-    """Rejected actions should be recorded without execution."""
+    """Rejected healing actions should be audited without execution."""
 
     workflow = SelfHealingWorkflow()
-
-    from src.self_healing.audit_repository import HealingAuditRepository
 
     workflow.audit_repository = HealingAuditRepository(
         database_path=tmp_path / "test.db"
@@ -77,22 +76,23 @@ def test_rejected_action_is_audited(tmp_path):
     action = workflow.create_action(recommendation)
 
     assert action is not None
+    assert action.status == "pending"
 
     workflow.reject(action)
 
-    logs = workflow.audit_repository.get_all()
+    audits = workflow.audit_repository.get_all()
+    assert len(audits) == 1
+    audit = audits[0]
 
-    assert len(logs) == 1
-    assert logs[0].approval_status == "rejected"
-    assert logs[0].execution_status == "not_executed"
+    assert audit.approval_status == "rejected"
+    assert audit.execution_status == "not_executed"
+    assert audit.result == "Healing action rejected by human operator."
 
 
 def test_unapproved_action_execution_is_audited_as_failed(tmp_path):
-    """Execution of an unapproved action should fail safely."""
+    """Execution without approval should be rejected and audited as failed."""
 
     workflow = SelfHealingWorkflow()
-
-    from src.self_healing.audit_repository import HealingAuditRepository
 
     workflow.audit_repository = HealingAuditRepository(
         database_path=tmp_path / "test.db"
@@ -109,9 +109,5 @@ def test_unapproved_action_execution_is_audited_as_failed(tmp_path):
 
     assert audit.approval_status == "pending"
     assert audit.execution_status == "failed"
+    assert audit.result == "Healing action execution failed."
     assert audit.error is not None
-
-    logs = workflow.audit_repository.get_all()
-
-    assert len(logs) == 1
-    assert logs[0].execution_status == "failed"
