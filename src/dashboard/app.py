@@ -258,18 +258,27 @@ simulation_mode = st.sidebar.checkbox(
 )
 
 if simulation_mode:
-    # NEW: Create a simulated high-risk CPU prediction
+    # NEW: Create a simulated high-risk disk prediction.
+    # This maps to the real clear_cache healing action.
     simulated_prediction = PredictionResult(
         timestamp=latest.timestamp,
-        metric="cpu_percent",
-        current_value=75.0,
-        predicted_value=85.0,
-        threshold=80.0,
+        metric="disk_percent",
+        current_value=85.0,
+        predicted_value=95.0,
+        threshold=90.0,
         risk_level="high",
         message=(
-            "SIMULATION: CPU usage is predicted to exceed "
+            "SIMULATION: Disk usage is predicted to exceed "
             "the configured threshold."
         ),
+    )
+
+    # NEW: Add simulated prediction to dashboard results
+    prediction_results.append(simulated_prediction)
+
+    st.sidebar.warning(
+        "Simulation mode is active. The clear_cache action "
+        "requires human approval before execution."
     )
 
     # NEW: Add simulated prediction to dashboard results

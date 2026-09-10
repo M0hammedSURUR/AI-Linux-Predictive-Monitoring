@@ -5,29 +5,36 @@ from src.self_healing.workflow import SelfHealingWorkflow
 
 
 def create_recommendation():
-    """Create a sample recommendation for testing."""
+    """Create a sample disk recommendation for testing."""
 
     return Recommendation(
         timestamp=datetime.now(timezone.utc),
-        metric="cpu_percent",
+        metric="disk_percent",  # NEW: Maps to the implemented clear_cache action
         severity="high",
-        title="High CPU Usage",
-        description="CPU usage is above the configured threshold.",
-        suggested_action="Check the top CPU-consuming process.",
+        title="High Disk Usage",
+        description="Disk usage is above the configured threshold.",
+        suggested_action="Check disk usage and identify large files.",
     )
 
 
 def test_approved_action_executes_and_is_audited(tmp_path):
-    """Approved actions should execute and create an audit record."""
+    """Approved cache-cleanup actions should execute and be audited."""
 
     workflow = SelfHealingWorkflow()
 
-    # Use a temporary database for the test.
     from src.self_healing.audit_repository import HealingAuditRepository
 
     workflow.audit_repository = HealingAuditRepository(
         database_path=tmp_path / "test.db"
     )
+
+    # NEW: Use a temporary cache directory instead of the real ~/.cache
+    workflow.executor.CACHE_DIRECTORY = tmp_path / ".cache"
+    workflow.executor.CACHE_DIRECTORY.mkdir()
+
+    # NEW: Create a safe test cache file
+    test_file = workflow.executor.CACHE_DIRECTORY / "test_cache.txt"
+    test_file.write_text("temporary cache data")
 
     recommendation = create_recommendation()
 
@@ -35,6 +42,7 @@ def test_approved_action_executes_and_is_audited(tmp_path):
 
     assert action is not None
     assert action.status == "pending"
+    assert action.action == "clear_cache"
 
     workflow.approve(action)
 
@@ -43,6 +51,9 @@ def test_approved_action_executes_and_is_audited(tmp_path):
     assert audit.approval_status == "approved"
     assert audit.execution_status == "success"
     assert audit.error is None
+
+    # NEW: Verify the test cache content was actually removed
+    assert not test_file.exists()
 
     logs = workflow.audit_repository.get_all()
 
