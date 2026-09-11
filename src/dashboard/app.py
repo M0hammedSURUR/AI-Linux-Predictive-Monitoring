@@ -189,7 +189,7 @@ telemetry_rows = [
 
 st.dataframe(
     telemetry_rows,
-    use_container_width=True,
+    width="stretch",
     hide_index=True,
 )
 
@@ -211,8 +211,9 @@ anomaly_detector = AnomalyDetector()
 
 # Detect anomalies in the processed telemetry
 anomaly_results = [
-    anomaly_detector.detect(record)
+    anomaly
     for record in processed_records
+    for anomaly in anomaly_detector.detect(record)
 ]
 
 # Get only the detected anomalies
@@ -236,8 +237,11 @@ else:
             f"**Anomaly detected at {anomaly.timestamp}**"
         )
 
-        for reason in anomaly.reasons:
-            st.write(f"- {reason}")
+        st.write(f"**Metric:** {anomaly.metric}")
+        st.write(f"**Observed value:** {anomaly.observed_value:.2f}")
+        st.write(f"**Threshold:** {anomaly.threshold:.2f}")
+        st.write(f"**Severity:** {anomaly.severity}")
+        st.write(f"**Explanation:** {anomaly.explanation}")
 
 
 # ============================================================

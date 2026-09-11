@@ -1,3 +1,5 @@
+from datetime import datetime, timezone
+
 from src.anomaly_detection.detector import AnomalyDetector
 from src.collector.models import TelemetryRecord
 
@@ -11,9 +13,7 @@ def create_record(
     """Create a telemetry record for testing."""
 
     return TelemetryRecord(
-        timestamp=__import__("datetime").datetime.now(
-            __import__("datetime").timezone.utc
-        ),
+        timestamp=datetime.now(timezone.utc),
         cpu_percent=cpu,
         memory_percent=memory,
         swap_percent=0.0,
@@ -29,15 +29,14 @@ def create_record(
     )
 
 
-def test_normal_record_is_not_an_anomaly():
+def test_normal_record_has_no_anomalies():
     detector = AnomalyDetector()
 
     record = create_record()
 
-    result = detector.detect(record)
+    results = detector.detect(record)
 
-    assert result.is_anomaly is False
-    assert result.reasons == []
+    assert results == []
 
 
 def test_high_cpu_is_detected():
@@ -45,10 +44,20 @@ def test_high_cpu_is_detected():
 
     record = create_record(cpu=95.0)
 
-    result = detector.detect(record)
+    results = detector.detect(record)
+
+    assert len(results) == 1
+
+    result = results[0]
 
     assert result.is_anomaly is True
-    assert "High CPU usage" in result.reasons
+    assert result.metric == "cpu_percent"
+    assert result.observed_value == 95.0
+    assert result.threshold == 80.0
+    assert result.severity == "high"
+    assert result.explanation == (
+        "CPU usage is above the configured threshold."
+    )
 
 
 def test_multiple_anomalies_are_detected():
@@ -61,10 +70,35 @@ def test_multiple_anomalies_are_detected():
         load=10.0,
     )
 
-    result = detector.detect(record)
+    results = detector.detect(record)
 
-    assert result.is_anomaly is True
-    assert "High CPU usage" in result.reasons
-    assert "High memory usage" in result.reasons
-    assert "High disk usage" in result.reasons
-    assert "High system load" in result.reasons
+    assert len(results) == 4
+
+    metrics = {result.metric for result in results}
+
+    assert metrics == {
+        "cpu_percent",
+        "memory_percent",
+        "disk_percent",
+        "load_1m",
+    }
+
+
+def test_critical_severity_is_detected():
+    detector = AnomalyDetector()
+
+    record = create_record(cpu=100.0)
+
+    results = detector.detect(record)
+
+    assert results[0].severity == "critical"
+
+
+def test_medium_severity_is_detected():
+    detector = AnomalyDetector()
+
+    record = create_record(cpu=85.0)
+
+    results = detector.detect(record)
+
+    assert results[0].severity == "medium"
