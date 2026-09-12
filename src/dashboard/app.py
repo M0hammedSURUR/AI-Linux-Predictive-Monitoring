@@ -10,6 +10,8 @@ from src.prediction.models import PredictionResult
 # NEW: Import preprocessing and anomaly detection
 from src.preprocessing.telemetry_preprocessor import TelemetryPreprocessor
 from src.anomaly_detection.detector import AnomalyDetector
+from src.anomaly_detection.ml_detector import MLAnomalyDetector
+from src.anomaly_detection.combined_detector import CombinedAnomalyDetector
 
 # NEW: Import prediction engine
 from src.prediction.predictor import TelemetryPredictor
@@ -206,30 +208,66 @@ preprocessor = TelemetryPreprocessor(repository)
 # Convert raw telemetry into processed telemetry
 processed_records = preprocessor.process(limit=20)
 
-# Create the anomaly detector
+# Create the rule-based anomaly detector
 anomaly_detector = AnomalyDetector()
 
-# Detect anomalies in the processed telemetry
+# Create the experimental ML anomaly detector
+ml_detector = MLAnomalyDetector(
+    contamination=0.23,
+    random_state=42,
+)
+
+# Create the combined analysis layer
+combined_detector = CombinedAnomalyDetector()
+
+# Detect rule-based anomalies
 anomaly_results = [
     anomaly
     for record in processed_records
     for anomaly in anomaly_detector.detect(record)
 ]
 
-# Get only the detected anomalies
+# Get only the detected rule-based anomalies
 active_anomalies = [
     result
     for result in anomaly_results
     if result.is_anomaly
 ]
 
+# Run ML detection only when enough telemetry records are available
+ml_predictions = []
 
-# Display anomaly status
+if len(processed_records) >= 10:
+    try:
+        ml_detector.fit(processed_records)
+        ml_predictions = ml_detector.predict(processed_records)
+    except ValueError:
+        ml_predictions = [False] * len(processed_records)
+else:
+    ml_predictions = [False] * len(processed_records)
+
+
+# Combine rule-based and ML results
+combined_results = []
+
+for index, record in enumerate(processed_records):
+    rule_anomalies = anomaly_detector.detect(record)
+
+    combined_result = combined_detector.analyze(
+        telemetry=record,
+        rule_anomalies=rule_anomalies,
+        ml_is_anomaly=ml_predictions[index],
+    )
+
+    combined_results.append(combined_result)
+
+
+# Display rule-based anomaly status
 if not active_anomalies:
-    st.success("No active anomalies detected.")
+    st.success("No active rule-based anomalies detected.")
 else:
     st.warning(
-        f"{len(active_anomalies)} anomaly/anomalies detected."
+        f"{len(active_anomalies)} rule-based anomaly/anomalies detected."
     )
 
     for anomaly in active_anomalies:
@@ -242,6 +280,39 @@ else:
         st.write(f"**Threshold:** {anomaly.threshold:.2f}")
         st.write(f"**Severity:** {anomaly.severity}")
         st.write(f"**Explanation:** {anomaly.explanation}")
+
+
+# Display ML status separately because it is experimental
+ml_anomaly_count = sum(ml_predictions)
+
+st.info(
+    f"Experimental ML detection: {ml_anomaly_count} "
+    "unusual pattern(s) identified."
+)
+
+
+# Display combined analysis
+for result in combined_results:
+    if result.confidence == "normal":
+        continue
+
+    if result.confidence == "experimental":
+        st.info(
+            f"**Experimental ML signal at {result.telemetry.timestamp}**"
+        )
+    elif result.confidence == "high":
+        st.warning(
+            f"**High-confidence anomaly at "
+            f"{result.telemetry.timestamp}**"
+        )
+    else:
+        st.warning(
+            f"**Rule-based anomaly at "
+            f"{result.telemetry.timestamp}**"
+        )
+
+    st.write(f"**Confidence:** {result.confidence}")
+    st.write(f"**Explanation:** {result.explanation}")
 
 
 # ============================================================
