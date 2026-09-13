@@ -111,3 +111,32 @@ def test_high_cpu_prediction_is_detected():
 
     assert cpu_prediction.predicted_value == 95.0
     assert cpu_prediction.risk_level == "high"
+
+
+def test_predictor_uses_recent_history():
+    """Verify that prediction uses the recent rolling history."""
+
+    predictor = TelemetryPredictor()
+
+    base_timestamp = datetime.now(timezone.utc)
+
+    records = [
+        create_record(
+            base_timestamp.replace(
+                microsecond=base_timestamp.microsecond + index
+            ),
+            cpu_percent=20.0 + (index * 2),
+        )
+        for index in range(5)
+    ]
+
+    predictions = predictor.predict(records)
+
+    cpu_prediction = next(
+        prediction
+        for prediction in predictions
+        if prediction.metric == "cpu_percent"
+    )
+
+    assert cpu_prediction.current_value == 28.0
+    assert cpu_prediction.predicted_value == 30.0

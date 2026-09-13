@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import datetime
 
 from src.preprocessing.telemetry_preprocessor import ProcessedTelemetry
 from src.prediction.models import PredictionResult
@@ -6,61 +6,68 @@ from src.prediction.models import PredictionResult
 
 class TelemetryPredictor:
     """
-    Performs simple trend-based prediction on processed telemetry.
+    Predict future resource usage from recent telemetry history.
 
-    This is the first prediction layer of the project.
-    It uses recent telemetry values and estimates the next value
-    using a simple linear trend.
+    The predictor uses a rolling linear trend over recent observations
+    instead of relying only on the last two values.
     """
 
-    # NEW: Prediction thresholds
     CPU_THRESHOLD = 80.0
     MEMORY_THRESHOLD = 80.0
     DISK_THRESHOLD = 90.0
+
+    HISTORY_SIZE = 5
 
     def predict(
         self,
         records: list[ProcessedTelemetry],
     ) -> list[PredictionResult]:
-        """Generate predictions from processed telemetry records."""
+        """Generate predictions from recent processed telemetry."""
 
         if len(records) < 2:
             return []
 
+        recent_records = records[-self.HISTORY_SIZE:]
+
+        latest = recent_records[-1]
+
         predictions: list[PredictionResult] = []
 
-        latest = records[-1]
-        previous = records[-2]
-
-        # NEW: Predict CPU usage
         predictions.append(
             self._create_prediction(
                 timestamp=latest.timestamp,
                 metric="cpu_percent",
                 current_value=latest.cpu_percent,
-                previous_value=previous.cpu_percent,
+                values=[
+                    record.cpu_percent
+                    for record in recent_records
+                ],
                 threshold=self.CPU_THRESHOLD,
             )
         )
 
-        # NEW: Predict memory usage
         predictions.append(
             self._create_prediction(
                 timestamp=latest.timestamp,
                 metric="memory_percent",
                 current_value=latest.memory_percent,
-                previous_value=previous.memory_percent,
+                values=[
+                    record.memory_percent
+                    for record in recent_records
+                ],
                 threshold=self.MEMORY_THRESHOLD,
             )
         )
 
-        # NEW: Predict disk usage
         predictions.append(
             self._create_prediction(
                 timestamp=latest.timestamp,
                 metric="disk_percent",
                 current_value=latest.disk_percent,
-                previous_value=previous.disk_percent,
+                values=[
+                    record.disk_percent
+                    for record in recent_records
+                ],
                 threshold=self.DISK_THRESHOLD,
             )
         )
@@ -72,18 +79,34 @@ class TelemetryPredictor:
         timestamp: datetime,
         metric: str,
         current_value: float,
-        previous_value: float,
+        values: list[float],
         threshold: float,
     ) -> PredictionResult:
-        """Create one prediction using the latest telemetry trend."""
+        """Create one prediction using a linear trend."""
 
-        # NEW: Calculate the change between the latest two observations
-        change = current_value - previous_value
+        if len(values) < 2:
+            predicted_value = current_value
+        else:
+            x_values = list(range(len(values)))
+            x_mean = sum(x_values) / len(x_values)
+            y_mean = sum(values) / len(values)
 
-        # NEW: Estimate the next value
-        predicted_value = max(0.0, current_value + change)
+            numerator = sum(
+                (x - x_mean) * (y - y_mean)
+                for x, y in zip(x_values, values)
+            )
 
-        # NEW: Determine prediction risk
+            denominator = sum(
+                (x - x_mean) ** 2
+                for x in x_values
+            )
+
+            slope = numerator / denominator
+
+            predicted_value = current_value + slope
+
+        predicted_value = max(0.0, predicted_value)
+
         if predicted_value >= threshold:
             risk_level = "high"
         elif predicted_value >= threshold * 0.8:
@@ -91,22 +114,22 @@ class TelemetryPredictor:
         else:
             risk_level = "low"
 
-        # NEW: Generate a human-readable message
         if predicted_value >= threshold:
             message = (
                 f"{metric} is predicted to reach "
                 f"{predicted_value:.1f}%, exceeding the threshold "
                 f"of {threshold:.1f}%."
             )
-        elif change > 0:
+        elif predicted_value > current_value:
             message = (
-                f"{metric} is increasing. "
+                f"{metric} is increasing based on the recent trend. "
                 f"Predicted next value: {predicted_value:.1f}%."
             )
         else:
             message = (
-                f"{metric} is stable or decreasing. "
-                f"Predicted next value: {predicted_value:.1f}%."
+                f"{metric} is stable or decreasing based on the "
+                f"recent trend. Predicted next value: "
+                f"{predicted_value:.1f}%."
             )
 
         return PredictionResult(

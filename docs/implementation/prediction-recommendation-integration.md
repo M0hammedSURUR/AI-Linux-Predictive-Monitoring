@@ -1,4 +1,4 @@
-# Prediction and Recommendation Integration
+# Prediction, Trend Forecasting, and Recommendation Integration
 
 ## 1. Overview
 
@@ -12,13 +12,17 @@ No prediction directly executes a system action.
 
 The `TelemetryPredictor` generates predictions from recent processed telemetry.
 
-The current prediction layer uses a simple trend-based approach:
+The current prediction layer uses a rolling linear-trend approach based on recent telemetry history.
+
+The predictor uses up to the five most recent observations for:
 
 - CPU usage
 - Memory usage
 - Disk usage
 
-The next value is estimated from the change between the two most recent observations.
+A linear trend is calculated from these recent observations, and the next value is estimated by extending the calculated trend by one step.
+
+Using multiple recent observations reduces the influence of a single sudden measurement and provides a more stable prediction than using only the two most recent values.
 
 Prediction risk levels are:
 
