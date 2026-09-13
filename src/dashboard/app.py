@@ -333,8 +333,6 @@ simulation_mode = st.sidebar.checkbox(
 )
 
 if simulation_mode:
-    # NEW: Create a simulated high-risk disk prediction.
-    # This maps to the real clear_cache healing action.
     simulated_prediction = PredictionResult(
         timestamp=latest.timestamp,
         metric="disk_percent",
@@ -348,22 +346,13 @@ if simulation_mode:
         ),
     )
 
-    # NEW: Add simulated prediction to dashboard results
-    prediction_results.append(simulated_prediction)
-
-    st.sidebar.warning(
-        "Simulation mode is active. The clear_cache action "
-        "requires human approval before execution."
-    )
-
-    # NEW: Add simulated prediction to dashboard results
     prediction_results.append(simulated_prediction)
 
     st.sidebar.warning(
         "Simulation mode is active. No real system action "
-        "will be executed."
+        "will be executed. Any healing action still requires "
+        "human approval."
     )
-
 
 # Display prediction results
 if not prediction_results:
