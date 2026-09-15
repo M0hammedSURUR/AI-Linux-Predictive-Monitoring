@@ -6,33 +6,6 @@ from .models import TelemetryRecord
 
 
 class SystemCollector:
-    """Collect basic Linux system telemetry."""
-
-    def collect(self) -> TelemetryRecord:
-        """Collect one telemetry snapshot."""
-
-        memory = psutil.virtual_memory()
-        swap = psutil.swap_memory()
-        disk = psutil.disk_usage("/")
-
-        load_1m = psutil.getloadavg()[0]
-
-        return TelemetryRecord(
-            timestamp=datetime.now(timezone.utc),
-            cpu_percent=psutil.cpu_percent(interval=0.1),
-            memory_percent=memory.percent,
-            swap_percent=swap.percent,
-            disk_percent=disk.percent,
-            load_1m=load_1m,
-        )
-from datetime import datetime, timezone
-
-import psutil
-
-from .models import TelemetryRecord
-
-
-class SystemCollector:
     """Collect system-level Linux telemetry."""
 
     def collect(self) -> TelemetryRecord:
@@ -45,7 +18,11 @@ class SystemCollector:
         disk_io = psutil.disk_io_counters()
         network_io = psutil.net_io_counters()
 
-        processes = list(psutil.process_iter(["pid", "name", "cpu_percent", "memory_percent"]))
+        processes = list(
+            psutil.process_iter(
+                ["pid", "name", "cpu_percent", "memory_percent"]
+            )
+        )
 
         process_count = len(processes)
 
@@ -81,7 +58,12 @@ class SystemCollector:
                 value = process.info.get(metric)
 
                 if value is not None:
-                    valid_processes.append((value, process.info.get("name") or "unknown"))
+                    valid_processes.append(
+                        (
+                            value,
+                            process.info.get("name") or "unknown",
+                        )
+                    )
 
             except (psutil.NoSuchProcess, psutil.AccessDenied):
                 continue

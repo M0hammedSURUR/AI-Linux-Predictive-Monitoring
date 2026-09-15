@@ -1,0 +1,7 @@
+{
+    "services": [
+        "cron.service",
+        "bluetooth.service",
+        "cups.service"
+    ]
+}
