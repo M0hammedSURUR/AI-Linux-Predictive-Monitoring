@@ -326,6 +326,46 @@ def dashboard():
 
 
     # ============================================================
+    # Overall System Health
+    # ============================================================
+
+    st.subheader("Overall System Health")
+
+    critical_anomalies = [
+        anomaly
+        for anomaly in active_anomalies
+        if anomaly.severity == "critical"
+    ]
+
+    high_anomalies = [
+        anomaly
+        for anomaly in active_anomalies
+        if anomaly.severity == "high"
+    ]
+
+    if critical_anomalies:
+        st.error(
+            "🔴 CRITICAL — Critical system anomalies detected."
+        )
+    elif high_anomalies:
+        st.warning(
+            "🟡 WARNING — High-severity system anomalies detected."
+        )
+    elif active_anomalies:
+        st.warning(
+            "🟡 WARNING — System anomalies detected."
+        )
+    elif ml_anomaly_count > 0:
+        st.info(
+            "🟡 WARNING — Experimental ML signals detected."
+        )
+    else:
+        st.success(
+            "🟢 HEALTHY — No significant system anomalies detected."
+        )
+
+
+    # ============================================================
     # Predictions
     # ============================================================
 
