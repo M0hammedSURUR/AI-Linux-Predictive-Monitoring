@@ -257,17 +257,19 @@ The following assumptions apply:
 
 The current verified implementation includes:
 
-* FR-01 to FR-06
-* FR-09 to FR-13
-* FR-15 to FR-20
+* FR-01 to FR-20
 
-The following requirements remain planned/not implemented in the current verified implementation:
+All functional requirements defined in the current project scope have been implemented and verified through automated and/or live testing.
+
+The current implementation includes:
 
 * FR-07 — Selected Linux service monitoring
 * FR-08 — Selected system/application log monitoring
 * FR-14 — Dedicated overall system health/risk status
+* FR-18 — Dry-run or simulation mode for corrective actions
+* FR-19 — Audit logging of recommendations, approvals, rejections, executions, and results
 
-These requirements remain documented to preserve traceability with the original project scope.
+Detailed verification status is maintained in the Requirements Traceability Matrix.
 
 ---
 
@@ -558,7 +560,7 @@ The current traceability baseline contains:
 * Defined acceptance criteria
 * Automated test evidence for implemented functionality
 
-The current automated test suite contains 63 passing tests.
+The current automated test suite contains 69 passing tests.
 
 ---
 
