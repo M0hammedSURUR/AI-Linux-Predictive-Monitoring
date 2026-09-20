@@ -254,7 +254,6 @@ AI-Linux-Predictive-Monitoring/
 │   ├── implementation/
 │   ├── planning/
 │   ├── requirements/
-│   ├── result/
 │   ├── standards/
 │   └── testing/
 │
@@ -272,7 +271,6 @@ AI-Linux-Predictive-Monitoring/
 │   ├── collector/
 │   ├── dashboard/
 │   ├── database/
-│   ├── intelligence/
 │   ├── log_monitor/
 │   ├── prediction/
 │   ├── preprocessing/
