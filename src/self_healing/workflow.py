@@ -2,9 +2,9 @@ from src.recommendations.models import Recommendation
 from src.self_healing.action_mapper import HealingActionMapper
 from src.self_healing.engine import SelfHealingEngine
 from src.self_healing.models import HealingAction
-from src.self_healing.executor import SelfHealingExecutor  # NEW
-from src.self_healing.audit import HealingAuditLog  # NEW
-from src.self_healing.audit_repository import HealingAuditRepository  # NEW
+from src.self_healing.executor import SelfHealingExecutor
+from src.self_healing.audit import HealingAuditLog
+from src.self_healing.audit_repository import HealingAuditRepository
 
 
 class SelfHealingWorkflow:
@@ -13,8 +13,8 @@ class SelfHealingWorkflow:
     def __init__(self):
         self.mapper = HealingActionMapper()
         self.approval_engine = SelfHealingEngine()
-        self.executor = SelfHealingExecutor()  # NEW
-        self.audit_repository = HealingAuditRepository()  # NEW
+        self.executor = SelfHealingExecutor()
+        self.audit_repository = HealingAuditRepository()
 
     def create_action(
         self,
@@ -22,10 +22,8 @@ class SelfHealingWorkflow:
     ) -> HealingAction | None:
         """Convert a recommendation into a pending healing action."""
 
-        # NEW: Map the recommendation to a predefined action
         action = self.mapper.map(recommendation)
 
-        # NEW: Do not create an action without a safe mapping
         if action is None:
             return None
 
@@ -53,7 +51,6 @@ class SelfHealingWorkflow:
 
         result = self.approval_engine.reject(action)
 
-        # NEW: Record rejected actions in the audit log
         audit = HealingAuditLog(
             timestamp=action.timestamp,
             metric=action.metric,
@@ -71,25 +68,44 @@ class SelfHealingWorkflow:
     def execute(
         self,
         action: HealingAction,
+        simulation: bool = False,
     ) -> HealingAuditLog:
-        """Execute an approved action and persist the result."""
+        """
+        Execute an approved action and persist the result.
 
-        # NEW: Track execution status and result
+        In simulation mode, no real system action is executed.
+        The simulated execution is still recorded in the audit log.
+        """
+
+        if simulation:
+            audit = HealingAuditLog(
+                timestamp=action.timestamp,
+                metric=action.metric,
+                action=action.action,
+                approval_status=action.status,
+                execution_status="simulated",
+                result=(
+                    "Simulation completed successfully. "
+                    "No real system action was executed."
+                ),
+                error=None,
+            )
+
+            self.audit_repository.save(audit)
+            return audit
+
         execution_status = "success"
         result = ""
         error = None
 
         try:
-            # NEW: Executor enforces approval and action whitelist
             result = self.executor.execute(action)
 
         except ValueError as exc:
-            # NEW: Record failed execution attempts
             execution_status = "failed"
             error = str(exc)
             result = "Healing action execution failed."
 
-        # NEW: Create persistent audit record
         audit = HealingAuditLog(
             timestamp=action.timestamp,
             metric=action.metric,
@@ -100,7 +116,6 @@ class SelfHealingWorkflow:
             error=error,
         )
 
-        # NEW: Persist the audit record in SQLite
         self.audit_repository.save(audit)
 
         return audit
