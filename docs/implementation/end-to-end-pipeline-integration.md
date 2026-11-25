@@ -223,3 +223,117 @@ Day 27 successfully integrates the major LinuxSentinel AI components into a test
 The system can now demonstrate the complete logical pipeline from system telemetry and anomaly detection through prediction, recommendation, human approval, safe healing execution, and audit logging.
 
 The complete test suite passes with 69 tests, providing evidence that the integrated workflow works without breaking existing functionality.
+
+---
+
+#---
+
+## 10. Extended Monitoring and Dashboard Integration
+
+The monitoring pipeline has been extended to include additional system-level metrics.
+
+### 10.1 Extended Telemetry
+
+The collector now provides:
+
+- CPU, memory, and swap utilization.
+- Root filesystem utilization.
+- One-minute system load.
+- Cumulative disk read and write counters.
+- Cumulative network sent and received counters.
+- Total process count.
+- Top CPU-consuming process.
+- Top memory-consuming process.
+
+### 10.2 Derived I/O Metrics
+
+The preprocessing component calculates:
+
+- Disk read rate.
+- Disk write rate.
+- Network upload rate.
+- Network download rate.
+
+These derived metrics are used by the dashboard for live monitoring and historical trend visualization.
+
+### 10.3 Dashboard Integration
+
+The Streamlit dashboard integrates the monitoring and intelligence components.
+
+It displays:
+
+- CPU, memory, disk, and system load.
+- Network upload and download rates.
+- Disk read and write rates.
+- Network and disk I/O trend charts.
+- Process count and top resource-consuming processes.
+- Anomaly detection results.
+- Resource usage predictions.
+- Recommendations.
+- Linux service and system log information.
+- Human-approved self-healing operations.
+
+### 10.4 End-to-End Verification
+
+The collector and dashboard were run together to verify the flow of live telemetry.
+
+The verification confirmed:
+
+1. Successful collection of Linux system metrics.
+2. Storage of telemetry records in SQLite.
+3. Availability of telemetry for dashboard visualization.
+4. Display of network and disk I/O information.
+5. Display of process monitoring information.
+6. Integration of anomaly detection, prediction, and recommendations.
+
+## 11. Latest Self-Healing Simulation Verification
+
+A controlled disk-usage prediction scenario was used to verify the human-approved self-healing workflow.
+
+### Simulation Scenario
+
+| Parameter | Value |
+|---|---:|
+| Simulated current disk usage | 85% |
+| Predicted disk usage | 95% |
+| Configured threshold | 90% |
+| Selected action | `clear_cache` |
+| Human approval | Approved |
+| Execution status | SIMULATED |
+
+### Result
+
+The simulation completed successfully.
+
+The system reported:
+
+`Simulation completed successfully. No real system action was executed.`
+
+This verifies the approval and simulation workflow without performing an actual system modification.
+
+## 12. Latest Testing and Verification
+
+The latest project verification produced the following results:
+
+| Verification | Result |
+|---|---|
+| Complete automated test suite | 69 passed |
+| Dashboard Python syntax compilation | Passed |
+| Live collector and dashboard integration | Verified |
+| Network and disk I/O monitoring | Verified |
+| Process monitoring | Verified |
+| Self-healing simulation | Successful |
+
+The test suite was executed using `pytest -q`.
+
+Dashboard syntax was checked using:
+
+`python -m py_compile src/dashboard/app.py`
+
+## 13. Updated Conclusion
+
+LinuxSentinel AI now integrates Linux telemetry collection, SQLite storage, preprocessing, anomaly detection, predictive monitoring, recommendations, dashboard visualization, and human-approved self-healing.
+
+The extended monitoring implementation includes network activity, disk I/O performance, and process-level information.
+
+The latest verification demonstrates that the monitoring pipeline and dashboard work together, while the self-healing simulation preserves the requirement for explicit human approval and avoids unintended system modifications.

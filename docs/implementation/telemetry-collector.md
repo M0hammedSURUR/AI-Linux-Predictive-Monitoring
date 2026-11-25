@@ -1,55 +1,110 @@
 # Telemetry Collector
 
-## Purpose
+## 1. Purpose
 
-The telemetry collector is responsible for obtaining system-level
-performance information directly from the Linux operating system.
+The telemetry collector obtains system-level performance information directly from the Linux operating system.
 
-## Initial Metrics
+It collects real-time telemetry using Python and the `psutil` library and provides structured records for storage, preprocessing, anomaly detection, prediction, and dashboard monitoring.
 
-The first implementation collects:
+## 2. Technology
 
-- CPU utilization
-- Memory utilization
-- Swap utilization
-- Root filesystem utilization
-- One-minute system load
-- Timestamp
+- **Programming language:** Python
+- **System monitoring library:** psutil
+- **Data model:** Python dataclass
+- **Timestamp:** Python datetime with UTC timezone
+- **Storage integration:** SQLite
 
-## Technology
+## 3. Collected Metrics
 
-Python and psutil are used for the initial implementation.
+The current implementation collects the following metrics:
 
-## Design
+### CPU and Memory
 
-The collector is separated from data processing and machine-learning
-components so that telemetry collection can be independently tested.
+- CPU utilization (`cpu_percent`)
+- Memory utilization (`memory_percent`)
+- Swap utilization (`swap_percent`)
 
-## Timestamp Handling
+### Disk and System Load
 
-Telemetry timestamps are stored as timezone-aware UTC timestamps.
+- Root filesystem utilization (`disk_percent`)
+- One-minute system load (`load_1m`)
+- Cumulative disk read bytes (`disk_read_bytes`)
+- Cumulative disk write bytes (`disk_write_bytes`)
 
-## Current Limitations
+### Network
 
-The initial implementation does not yet collect:
+- Cumulative network bytes sent (`network_bytes_sent`)
+- Cumulative network bytes received (`network_bytes_received`)
 
-- network traffic
-- disk I/O
-- process-level metrics
-- service state
-- system logs
+### Process Monitoring
 
-These will be added incrementally in subsequent development iterations.
+- Total process count (`process_count`)
+- Name of the top CPU-consuming process (`top_cpu_process`)
+- Name of the top memory-consuming process (`top_memory_process`)
 
-## Testing
+### Timestamp
+
+- Time of collection, stored as a timezone-aware UTC timestamp (`timestamp`).
+
+## 4. Implementation Design
+
+The collector is implemented using two main components.
+
+### 4.1 TelemetryRecord
+
+The `TelemetryRecord` dataclass in `src/collector/models.py` defines the structure of one telemetry snapshot.
+
+It provides a consistent data structure containing all collected metrics.
+
+### 4.2 SystemCollector
+
+The `SystemCollector` class in `src/collector/system_collector.py` collects system information using `psutil`.
+
+Its `collect()` method:
+
+1. Reads CPU utilization.
+2. Retrieves memory and swap usage.
+3. Reads root filesystem utilization.
+4. Retrieves cumulative disk I/O counters.
+5. Retrieves cumulative network I/O counters.
+6. Enumerates running processes.
+7. Determines the top CPU-consuming and memory-consuming process names.
+8. Retrieves the one-minute system load.
+9. Creates and returns a `TelemetryRecord`.
+
+The `_top_process()` helper handles processes that disappear or cannot be accessed during collection.
+
+## 5. Timestamp Handling
+
+Each telemetry record receives a timezone-aware UTC timestamp using Python's `datetime` module.
+
+UTC timestamps provide consistent time references for storage, sorting, preprocessing, and historical analysis.
+
+## 6. Data Collection and Processing
+
+The collector records cumulative disk and network byte counters.
+
+These counters are not transfer rates. The preprocessing layer calculates read, write, upload, and download rates by comparing consecutive telemetry records and their timestamps.
+
+This separation keeps system data collection independent from feature engineering.
+
+## 7. Error Handling
+
+The collector handles unavailable disk or network I/O counters by using zero values when the corresponding `psutil` counter is unavailable.
+
+Process enumeration also handles `NoSuchProcess` and `AccessDenied` exceptions when identifying top processes.
+
+## 8. Testing
 
 Unit tests verify:
 
-- TelemetryRecord creation
-- Collector output type
-- Validity of collected metric ranges
+- TelemetryRecord creation.
+- SystemCollector output type.
+- Validity of collected metric ranges.
 
-## Continuous Collection Experiment
+The collector is tested independently to ensure that it produces valid telemetry records.
+
+## 9. Continuous Collection Experiment
 
 A continuous telemetry collection experiment was performed on the Linux Mint development system.
 
@@ -73,15 +128,36 @@ A continuous telemetry collection experiment was performed on the Linux Mint dev
 | Process count range | 295–300 |
 | Database size | 24 KB |
 
-The effective sampling interval was approximately 5.21 seconds per sample. The difference from the configured 5-second interval is caused by the execution time required to collect and store each telemetry record before the sleep interval begins.
+The effective sampling interval was approximately 5.21 seconds per sample. The difference from the configured interval was caused by the time required to collect and store each telemetry record before the sleep interval began.
 
 ### Initial Observation
 
-The experiment successfully demonstrated continuous collection and persistence of real Linux telemetry into SQLite without runtime errors.
+The experiment demonstrated continuous collection and persistence of Linux telemetry into SQLite without runtime errors.
 
-The measured database size indicates that SQLite is suitable for the initial single-machine implementation. A larger dataset will be collected later for preprocessing and machine-learning experiments.
+The measured database size indicated that SQLite was suitable for the initial single-machine implementation.
 
 ### Engineering Decision
 
-The 5-second interval is currently treated as an initial experimental configuration rather than a final system requirement. Further experiments will determine the appropriate collection and aggregation intervals for anomaly detection and predictive analysis.
+The 5-second interval was treated as an initial experimental configuration rather than a final system requirement. Further experiments were planned to determine appropriate collection and aggregation intervals for anomaly detection and predictive analysis.
 
+## 10. Current Implementation Status
+
+The collector has been extended beyond the initial CPU and memory monitoring implementation.
+
+The current implementation supports:
+
+- CPU and memory monitoring.
+- Swap and root filesystem monitoring.
+- System load monitoring.
+- Disk I/O counter collection.
+- Network traffic counter collection.
+- Process count monitoring.
+- Identification of top CPU and memory-consuming processes.
+- UTC timestamp generation.
+- Structured telemetry records for downstream processing.
+
+## 11. Conclusion
+
+The telemetry collector provides the foundation of LinuxSentinel AI by gathering system performance information from the Linux operating system.
+
+Its modular design separates data collection from preprocessing and machine-learning components, allowing the platform to be tested, maintained, and extended independently.
