@@ -338,3 +338,113 @@ The human-approved self-healing workflow was also verified using the project's s
 The audit database confirmed that human decisions and execution results were persisted.
 
 The live test therefore provides evidence that the major implemented functional components operate together as intended. The experimental ML detector remains subject to the limitations documented in the ML evaluation report.
+
+---
+
+## 15. Latest Dashboard and End-to-End Verification
+
+### Network and Disk I/O Monitoring
+
+The updated dashboard successfully displayed real-time I/O metrics:
+
+- Network upload rate (KB/s)
+- Network download rate (KB/s)
+- Disk read rate (KB/s)
+- Disk write rate (KB/s)
+
+Historical network and disk I/O trends were also displayed.
+
+### Process Monitoring
+
+The dashboard successfully displayed:
+
+- Total process count
+- Top CPU-consuming process
+- Top memory-consuming process
+
+During verification, Brave was identified as the top CPU and memory-consuming process.
+
+### End-to-End Integration
+
+The collector and Streamlit dashboard were started simultaneously.
+
+New telemetry records appeared on the dashboard while the collector was running.
+
+The following integration was verified:
+
+```text
+Linux System
+     ↓
+Telemetry Collector
+     ↓
+SQLite Database
+     ↓
+Preprocessing
+     ↓
+Streamlit Dashboard
+```
+
+### Latest Self-Healing Simulation Verification
+
+A controlled disk prediction generated a proposed `clear_cache` action.
+
+The human operator approved the action while simulation mode was enabled.
+
+The dashboard displayed:
+
+```text
+Status: APPROVED
+
+Execution Status: SIMULATED
+
+Simulation completed successfully.
+No real system action was executed.
+```
+
+This confirms that the latest simulation test completed without executing a real system modification.
+
+### Latest Automated Testing
+
+The automated test suite was executed again:
+
+```bash
+pytest -q
+```
+
+Result:
+
+```text
+69 passed
+```
+
+Dashboard syntax was also verified:
+
+```bash
+python -m py_compile src/dashboard/app.py
+```
+
+Result: Successful compilation without syntax errors.
+
+### Latest Verification Summary
+
+| Component | Result |
+|---|---|
+| Live telemetry collection | PASS |
+| Database integration | PASS |
+| Live dashboard updates | PASS |
+| Network and disk I/O monitoring | PASS |
+| Process monitoring | PASS |
+| Anomaly detection | PASS |
+| Predictive monitoring | PASS |
+| Recommendations | PASS |
+| Human approval workflow | PASS |
+| Safe simulation execution | PASS |
+| Automated tests (69 tests) | PASS |
+
+## 16. Final Conclusion
+
+The latest end-to-end verification confirms that LinuxSentinel AI successfully integrates live Linux telemetry collection, SQLite storage, preprocessing, dashboard visualization, network and disk I/O monitoring, process monitoring, anomaly detection, prediction, recommendations, and human-approved self-healing simulation.
+
+The latest simulation test confirmed that an approved action can complete in simulation mode without executing a real system modification.
+
+The automated test suite also completed successfully with 69 passing tests.
