@@ -95,6 +95,10 @@ def dashboard():
 
     latest = records[-1]
 
+    # Prepare processed telemetry for I/O rates and process details.
+    preprocessor = TelemetryPreprocessor(repository)
+    processed_records = preprocessor.process(limit=20)
+
     # --------------------------------------------------------
     # Current telemetry metrics
     # --------------------------------------------------------
@@ -137,9 +141,65 @@ def dashboard():
         f"Last updated: **{latest.timestamp}**"
     )
 
+    latest_processed = (
+        processed_records[-1] if processed_records else None
+    )
+
+    st.subheader("Network & Disk I/O")
+
+    io1, io2, io3, io4 = st.columns(4)
+
+    with io1:
+        st.metric(
+            "Network Upload",
+            f"{latest_processed.network_send_rate / 1024:.2f} KB/s"
+            if latest_processed else "Waiting for samples",
+        )
+
+    with io2:
+        st.metric(
+            "Network Download",
+            f"{latest_processed.network_receive_rate / 1024:.2f} KB/s"
+            if latest_processed else "Waiting for samples",
+        )
+
+    with io3:
+        st.metric(
+            "Disk Read",
+            f"{latest_processed.disk_read_rate / 1024:.2f} KB/s"
+            if latest_processed else "Waiting for samples",
+        )
+
+    with io4:
+        st.metric(
+            "Disk Write",
+            f"{latest_processed.disk_write_rate / 1024:.2f} KB/s"
+            if latest_processed else "Waiting for samples",
+        )
+
+    st.subheader("Process Monitoring")
+
+    process1, process2, process3 = st.columns(3)
+
+    with process1:
+        st.metric("Process Count", latest.process_count)
+
+    with process2:
+        st.write("**Top CPU Process**")
+        st.write(latest.top_cpu_process or "Not available")
+
+    with process3:
+        st.write("**Top Memory Process**")
+        st.write(latest.top_memory_process or "Not available")
+
     # --------------------------------------------------------
     # Telemetry DataFrame
     # --------------------------------------------------------
+
+    processed_by_timestamp = {
+        record.timestamp: record
+        for record in processed_records
+    }
 
     telemetry_data = pd.DataFrame(
         [
@@ -149,6 +209,22 @@ def dashboard():
                 "Memory Usage": record.memory_percent,
                 "Disk Usage": record.disk_percent,
                 "System Load": record.load_1m,
+                "Network Upload (KB/s)": (
+                    processed_by_timestamp[record.timestamp].network_send_rate / 1024
+                    if record.timestamp in processed_by_timestamp else 0
+                ),
+                "Network Download (KB/s)": (
+                    processed_by_timestamp[record.timestamp].network_receive_rate / 1024
+                    if record.timestamp in processed_by_timestamp else 0
+                ),
+                "Disk Read (KB/s)": (
+                    processed_by_timestamp[record.timestamp].disk_read_rate / 1024
+                    if record.timestamp in processed_by_timestamp else 0
+                ),
+                "Disk Write (KB/s)": (
+                    processed_by_timestamp[record.timestamp].disk_write_rate / 1024
+                    if record.timestamp in processed_by_timestamp else 0
+                ),
             }
             for record in records
         ]
@@ -194,6 +270,26 @@ def dashboard():
             y_label="Load",
         )
 
+    st.subheader("Network & Disk I/O Trends")
+
+    io_chart1, io_chart2 = st.columns(2)
+
+    with io_chart1:
+        st.markdown("#### Network Upload / Download")
+        st.line_chart(
+            telemetry_data[
+                ["Network Upload (KB/s)", "Network Download (KB/s)"]
+            ],
+            y_label="Speed (KB/s)",
+        )
+
+    with io_chart2:
+        st.markdown("#### Disk Read / Write")
+        st.line_chart(
+            telemetry_data[["Disk Read (KB/s)", "Disk Write (KB/s)"]],
+            y_label="Speed (KB/s)",
+        )
+
     # --------------------------------------------------------
     # Recent telemetry table
     # --------------------------------------------------------
@@ -211,6 +307,8 @@ def dashboard():
             "Disk (%)": round(record.disk_percent, 1),
             "Load": round(record.load_1m, 2),
             "Processes": record.process_count,
+            "Top CPU Process": record.top_cpu_process or "Not available",
+            "Top Memory Process": record.top_memory_process or "Not available",
         }
         for record in records
     ]
@@ -226,10 +324,6 @@ def dashboard():
     # ========================================================
 
     st.subheader("Anomaly Detection")
-
-    preprocessor = TelemetryPreprocessor(repository)
-
-    processed_records = preprocessor.process(limit=20)
 
     anomaly_detector = AnomalyDetector()
 
