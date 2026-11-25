@@ -1,3 +1,4 @@
+
 from src.recommendations.models import Recommendation
 from src.self_healing.action_mapper import HealingActionMapper
 from src.self_healing.engine import SelfHealingEngine
@@ -47,7 +48,7 @@ class SelfHealingWorkflow:
         self,
         action: HealingAction,
     ) -> HealingAction:
-        """Reject a pending healing action."""
+        """Reject a pending healing action and record the decision."""
 
         result = self.approval_engine.reject(action)
 
@@ -73,10 +74,27 @@ class SelfHealingWorkflow:
         """
         Execute an approved action and persist the result.
 
-        In simulation mode, no real system action is executed.
-        The simulated execution is still recorded in the audit log.
+        Human approval is required in both real and simulation modes.
+        Simulation mode never executes a real system action.
         """
 
+        # Approval must be checked before either execution mode.
+        if action.status != "approved":
+            audit = HealingAuditLog(
+                timestamp=action.timestamp,
+                metric=action.metric,
+                action=action.action,
+                approval_status=action.status,
+                execution_status="failed",
+                result="Healing action execution failed.",
+                error="Only approved healing actions can be executed.",
+            )
+
+            self.audit_repository.save(audit)
+            return audit
+
+        # Simulation records the proposed execution without
+        # calling the real system executor.
         if simulation:
             audit = HealingAuditLog(
                 timestamp=action.timestamp,
@@ -101,7 +119,9 @@ class SelfHealingWorkflow:
         try:
             result = self.executor.execute(action)
 
-        except ValueError as exc:
+        except Exception as exc:
+            # Record execution errors, including timeouts
+            # and partial cache-cleanup failures.
             execution_status = "failed"
             error = str(exc)
             result = "Healing action execution failed."

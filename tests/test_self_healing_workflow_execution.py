@@ -111,3 +111,79 @@ def test_unapproved_action_execution_is_audited_as_failed(tmp_path):
     assert audit.execution_status == "failed"
     assert audit.result == "Healing action execution failed."
     assert audit.error is not None
+
+
+def test_pending_action_cannot_be_simulated(tmp_path):
+    """Simulation must not bypass human approval."""
+
+    workflow = SelfHealingWorkflow()
+    workflow.audit_repository = HealingAuditRepository(
+        database_path=tmp_path / "test.db"
+    )
+
+    action = workflow.create_action(create_recommendation())
+
+    assert action is not None
+    assert action.status == "pending"
+
+    audit = workflow.execute(action, simulation=True)
+
+    assert audit.approval_status == "pending"
+    assert audit.execution_status == "failed"
+    assert audit.error == "Only approved healing actions can be executed."
+
+
+def test_rejected_action_cannot_be_simulated(tmp_path):
+    """Rejected actions must never enter simulation."""
+
+    workflow = SelfHealingWorkflow()
+    workflow.audit_repository = HealingAuditRepository(
+        database_path=tmp_path / "test.db"
+    )
+
+    action = workflow.create_action(create_recommendation())
+
+    assert action is not None
+
+    workflow.reject(action)
+
+    audit = workflow.execute(action, simulation=True)
+
+    assert audit.approval_status == "rejected"
+    assert audit.execution_status == "failed"
+    assert audit.error == "Only approved healing actions can be executed."
+
+
+def test_execution_timeout_is_audited(tmp_path, monkeypatch):
+    """Execution errors must be recorded in the audit log."""
+
+    workflow = SelfHealingWorkflow()
+    workflow.audit_repository = HealingAuditRepository(
+        database_path=tmp_path / "test.db"
+    )
+
+    action = workflow.create_action(create_recommendation())
+
+    assert action is not None
+
+    workflow.approve(action)
+
+    def simulate_timeout(action):
+        raise TimeoutError("Test execution timeout.")
+
+    monkeypatch.setattr(
+        workflow.executor,
+        "execute",
+        simulate_timeout,
+    )
+
+    audit = workflow.execute(action)
+
+    assert audit.approval_status == "approved"
+    assert audit.execution_status == "failed"
+    assert audit.error == "Test execution timeout."
+
+    saved_audits = workflow.audit_repository.get_all()
+
+    assert len(saved_audits) == 1
+    assert saved_audits[0].execution_status == "failed"
